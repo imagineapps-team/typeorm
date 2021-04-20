@@ -155,6 +155,10 @@ export class DefaultNamingStrategy implements NamingStrategyInterface {
         return alias + "_" + propertyPath.replace(".", "_");
     }
 
+    joinRelationAlias(alias: string, propertyPath: string): string {
+        return alias + "__" + propertyPath.replace(".", "_");
+    }
+
     nestedSetColumnNames = { left: "nsleft", right: "nsright" };
     materializedPathColumnName = "mpath";
 }

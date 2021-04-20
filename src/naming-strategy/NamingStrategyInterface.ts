@@ -123,9 +123,14 @@ export interface NamingStrategyInterface {
     prefixTableName(prefix: string, tableName: string): string;
 
     /**
-     * Gets the name of the alias used for relation joins.
+     * Gets the name of the alias used for eager relation joins.
      */
     eagerJoinRelationAlias(alias: string, propertyPath: string): string;
+
+    /**
+     * Gets the name of the alias used for relation joins.
+     */
+    joinRelationAlias(alias: string, propertyPath: string): string;
 
     /**
      * Column names for nested sets.

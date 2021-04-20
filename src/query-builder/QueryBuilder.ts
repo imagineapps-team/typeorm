@@ -22,7 +22,8 @@ import {OracleDriver} from "../driver/oracle/OracleDriver";
 import {EntitySchema} from "../";
 import {FindOperator} from "../find-options/FindOperator";
 import {In} from "../find-options/operator/In";
-import {EntityColumnNotFound} from "../error/EntityColumnNotFound";
+import {EntityColumnNotFound, EntityMetadataNotFoundError} from "../error";
+import {RelationMetadata} from "../metadata/RelationMetadata";
 
 // todo: completely cover query builder with tests
 // todo: entityOrProperty can be target name. implement proper behaviour if it is.
@@ -730,7 +731,10 @@ export abstract class QueryBuilder<Entity> {
             if (driver instanceof OracleDriver) {
                 columnsExpression += " INTO " + columns.map(column => {
                     const parameterName = "output_" + column.databaseName;
-                    this.expressionMap.nativeParameters[parameterName] = { type: driver.columnTypeToNativeParameter(column.type), dir: driver.oracle.BIND_OUT };
+                    this.expressionMap.nativeParameters[parameterName] = {
+                        type: driver.columnTypeToNativeParameter(column.type),
+                        dir: driver.oracle.BIND_OUT
+                    };
                     return this.connection.driver.createParameter(parameterName, Object.keys(this.expressionMap.nativeParameters).length);
                 }).join(", ");
             }
@@ -827,6 +831,100 @@ export abstract class QueryBuilder<Entity> {
     }
 
     /**
+     * Computes given where argument of relations - transforms to a where string all forms it can take.
+     */
+    protected computeWhereParameterColumnRelation(column: ColumnMetadata | RelationMetadata, where: ObjectLiteral, alias: string): any {
+        let propertyPaths = EntityMetadata.createPropertyPath(this.expressionMap.mainAlias!.metadata, where);
+
+        const columnRelation = column instanceof RelationMetadata ? column : column?.relationMetadata;
+
+        // if not is a relation throw error
+        if (!columnRelation) {
+            throw new EntityMetadataNotFoundError(column.propertyPath);
+
+        }
+
+        // if is lazy relation call computeWhereParameter
+        if (columnRelation.isLazy) {
+            return this.computeWhereParameter(where);
+        }
+
+        return propertyPaths.map((propertyPath, propertyIndex) => {
+            const columns = columnRelation.inverseEntityMetadata.findColumnsWithPropertyPath(propertyPath);
+
+            // if can't find relation in entity throw error
+            if (!columns || !columns.length) {
+                throw new EntityColumnNotFound(propertyPath);
+
+            }
+
+            return columns.map((columnInverse, columnIndex) => {
+                const whereRelation = where[propertyPath];
+
+                // if is a relation call recursively computeWhereParameterColumnRelation
+                if (columnRelation
+                    && typeof whereRelation === "object"
+                    && !(whereRelation instanceof FindOperator)
+                    && columnInverse.relationMetadata) {
+                    const relationEagerAlias = this.connection.namingStrategy.eagerJoinRelationAlias(alias, columnRelation.propertyPath);
+                    const relationAlias = this.connection.namingStrategy.joinRelationAlias(alias, columnRelation.propertyPath);
+
+                    const aliasPath = columnRelation?.isEager ? relationEagerAlias : relationAlias;
+
+                    return this.computeWhereParameterColumnRelation(columnInverse, whereRelation, aliasPath);
+
+                }
+
+                if (!columnRelation?.propertyPath) {
+                    throw new EntityMetadataNotFoundError(propertyPath);
+
+                }
+
+                // getting relation alias
+                const relationEagerAlias = this.connection.namingStrategy.eagerJoinRelationAlias(alias, columnRelation?.propertyPath || columnInverse.propertyPath);
+                const relationAlias = this.connection.namingStrategy.joinRelationAlias(alias, column.propertyName);
+                const aliasPath = columnRelation?.isEager ? `${relationEagerAlias}.${propertyPath}` : `${relationAlias}.${propertyPath}`;
+
+                let parameterValue = columnInverse.getEntityValue(where, true) || column.getEntityValue(where, true) || where[propertyPath];
+                let parameterIndex = Object.keys(this.expressionMap.nativeParameters).length;
+
+                const parameterName = `where_${aliasPath}_${propertyIndex}_${columnIndex}`;
+                const parameterBaseCount = Object.keys(this.expressionMap.nativeParameters).filter(x => x.startsWith(parameterName)).length;
+
+                if (parameterValue === null) {
+                    return `${aliasPath} IS NULL`;
+
+                } else if (parameterValue instanceof FindOperator) {
+                    let parameters: any[] = [];
+                    if (parameterValue.useParameter) {
+                        if (parameterValue.objectLiteralParameters) {
+                            this.setParameters(parameterValue.objectLiteralParameters);
+
+                        } else {
+                            const realParameterValues: any[] = parameterValue.multipleParameters ? parameterValue.value : [parameterValue.value];
+                            realParameterValues.forEach((realParameterValue, realParameterValueIndex) => {
+                                this.expressionMap.nativeParameters[parameterName + (parameterBaseCount + realParameterValueIndex)] = realParameterValue;
+                                parameterIndex++;
+                                parameters.push(this.connection.driver.createParameter(parameterName + (parameterBaseCount + realParameterValueIndex), parameterIndex - 1));
+                            });
+
+                        }
+
+                    }
+
+                    return this.computeFindOperatorExpression(parameterValue, aliasPath, parameters);
+                } else {
+                    this.expressionMap.nativeParameters[parameterName] = parameterValue;
+                    parameterIndex++;
+                    const parameter = this.connection.driver.createParameter(parameterName, parameterIndex - 1);
+                    return `${aliasPath} = ${parameter}`;
+                }
+
+            }).filter(expression => !!expression).join(" AND ");
+        }).filter(expression => !!expression).join(" AND ");
+    }
+
+    /**
      * Computes given where argument - transforms to a where string all forms it can take.
      */
     protected computeWhereParameter(where: string|((qb: this) => string)|Brackets|ObjectLiteral|ObjectLiteral[]) {
@@ -856,14 +954,32 @@ export abstract class QueryBuilder<Entity> {
                     const propertyPaths = EntityMetadata.createPropertyPath(this.expressionMap.mainAlias!.metadata, where);
 
                     return propertyPaths.map((propertyPath, propertyIndex) => {
-                        const columns = this.expressionMap.mainAlias!.metadata.findColumnsWithPropertyPath(propertyPath);
+                        let columns: ColumnMetadata[] | RelationMetadata[] = this.expressionMap.mainAlias!.metadata.findColumnsWithPropertyPath(propertyPath);
+
+                        if (!columns.length) {
+                            const relation = this.expressionMap.mainAlias!.metadata.findRelationWithPropertyPath(propertyPath);
+                            if (relation) {
+                                columns = [relation];
+                            }
+                        }
 
                         if (!columns.length) {
                             throw new EntityColumnNotFound(propertyPath);
                         }
 
-                        return columns.map((column, columnIndex) => {
+                        return columns.map((column: ColumnMetadata | RelationMetadata, columnIndex: any) => {
+                            const whereRelation = where[propertyPath];
 
+                            // if is a valid relation call computeWhereParameterColumnRelation
+                            if (!column.isPrimary
+                                && typeof whereRelation === "object"
+                                && !(whereRelation instanceof FindOperator)
+                                && ((column instanceof RelationMetadata && !column.isLazy)
+                                    || (column instanceof ColumnMetadata && column.relationMetadata
+                                        && !column.relationMetadata.isLazy))) {
+                                return this.computeWhereParameterColumnRelation(column, whereRelation, this.alias);
+
+                            }
                             const aliasPath = this.expressionMap.aliasNamePrefixingEnabled ? `${this.alias}.${propertyPath}` : column.propertyPath;
                             let parameterValue = column.getEntityValue(where, true);
                             const parameterName = "where_" + whereIndex + "_" + propertyIndex + "_" + columnIndex;
