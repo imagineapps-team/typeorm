@@ -1,7 +1,6 @@
 {
-  "name": "@imagineapps/typeorm",
-  "private": true,
-  "version": "0.2.32",
+  "name": "@imagineapps/i-typeorm",
+  "version": "0.2.5",
   "description": "Data-Mapper ORM for TypeScript, ES7, ES6, ES5. Supports MySQL, PostgreSQL, MariaDB, SQLite, MS SQL Server, Oracle, MongoDB databases.",
   "license": "MIT",
   "readmeFilename": "README.md",
@@ -151,12 +150,6 @@
   },
   "bin": {
     "typeorm": "./cli.js"
-  },
-  "funding": "https://opencollective.com/typeorm",
-  "collective": {
-    "type": "opencollective",
-    "url": "https://opencollective.com/typeorm",
-    "logo": "https://opencollective.com/opencollective/logo.txt"
   },
   "nyc": {
     "all": true,
