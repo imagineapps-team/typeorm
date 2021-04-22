@@ -4,23 +4,6 @@
   </a>
   <br>
   <br>
-	<a href="https://app.circleci.com/pipelines/github/typeorm/typeorm">
-		<img src="https://circleci.com/gh/typeorm/typeorm/tree/master.svg?style=shield">
-	</a>
-	<a href="https://badge.fury.io/js/typeorm">
-		<img src="https://badge.fury.io/js/typeorm.svg">
-	</a>
-	<a href="https://david-dm.org/typeorm/typeorm">
-		<img src="https://david-dm.org/typeorm/typeorm.svg">
-	</a>
-    <a href="https://codecov.io/gh/typeorm/typeorm">
-        <img alt="Codecov" src="https://img.shields.io/codecov/c/github/typeorm/typeorm.svg">
-    </a>
-	<a href="https://join.slack.com/t/typeorm/shared_invite/zt-gej3gc00-hR~L~DqGUJ7qOpGy4SSq3g">
-		<img src="https://img.shields.io/badge/chat-on%20slack-blue.svg">
-	</a>
-  <br>
-  <br>
 </div>
 
 TypeORM is an [ORM](https://en.wikipedia.org/wiki/Object-relational_mapping)
