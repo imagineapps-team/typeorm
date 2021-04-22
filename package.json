@@ -1,6 +1,6 @@
 {
   "name": "@imagineapps/i-typeorm",
-  "version": "0.2.9",
+  "version": "0.2.91",
   "private": true,
   "description": "Data-Mapper ORM for TypeScript, ES7, ES6, ES5. Supports MySQL, PostgreSQL, MariaDB, SQLite, MS SQL Server, Oracle, MongoDB databases.",
   "license": "MIT",

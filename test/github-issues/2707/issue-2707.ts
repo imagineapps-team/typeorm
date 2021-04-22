@@ -206,6 +206,16 @@ describe("github issues > #2733 should Allow WHERE clause on joined columns", ()
 
                 expect(whereContactByAddressCity).to.be.eql(expectedWhereContactByAddressCity);
 
+                const whereContactByAddressId = await contactRepository.find({
+                    where: {
+                        addressId: 2,
+                    },
+                });
+
+                const expectedWhereContactByAddressId = [expectedWhereMrAmerica];
+
+                expect(whereContactByAddressId).to.be.eql(expectedWhereContactByAddressId);
+
 
                 const addressRepository = connection.getRepository(Address);
 
